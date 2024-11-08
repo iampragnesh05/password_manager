@@ -1,10 +1,13 @@
 import tkinter as tk
-from tkinter import font, messagebox
+from email.policy import default
+from tkinter import font, messagebox, simpledialog
 from PIL import  Image, ImageTk
 import random
 import pyperclip  # Import pyperclip for clipboard functionality
+import json
+import os
 
-
+default_email = None;
 # ---------------------------- PASSWORD GENERATOR ------------------------------- #
 # Password Generator Project
 letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u',
@@ -50,25 +53,71 @@ def save_data():
     password = password_entry.get().strip()
 
     if website and email and password:
-        data_line = f"{website} | {email} | {password} \n"
+        data_line = {website: {"email": email, "password": password}}
 
-        with open("data.txt", "a") as file:
-            file.write(data_line)
+        try:
+            with open("data.json", "r") as file:
+                data = json.load(file)
+        except FileNotFoundError:
+            data = {}
+        except json.JSONDecodeError:
+            # If there's an error decoding JSON (e.g., if the file is corrupted), also start fresh
+            messagebox.showerror("Error", "Data file is corrupted. Starting with a new file.")
+            data = {}
 
-        confirmation = messagebox.askquestion(
-            "Data Saved",
-            f"Details Saved Successfully!\n\nWebsite: {website}\nEmail: {email}\nPassword: {password}\n\nIs this correct?",
-        )
-        # If the user clicks 'Yes', clear the fields; otherwise, keep them filled
-        if confirmation == 'yes':
-            website_entry.delete(0, tk.END)
-            email_entry.delete(0, tk.END)
-            password_entry.delete(0, tk.END)
-        else:
-            print("Details not saved.")
+        data.update(data_line)
+
+        try:
+            # Save the updated data back to the file
+            with open("data.json", "w") as file:
+                json.dump(data, file, indent=4)
+            confirmation = messagebox.askquestion(
+                "Data Saved",
+                f"Details Saved Successfully!\n\nWebsite: {website}\nEmail: {email}\nPassword: {password}\n\nIs this correct?",
+            )
+            # If the user clicks 'Yes', clear the fields; otherwise, keep them filled
+            if confirmation == 'yes':
+                website_entry.delete(0, tk.END)
+                email_entry.delete(0, tk.END)
+                password_entry.delete(0, tk.END)
+            else:
+                print("Details not saved.")
+        except IOError:
+            messagebox.showerror("Error", "Please fill in all fields.")
     else:
         messagebox.showerror("Error", "Please fill in all fields.")
 
+
+def search_data():
+    website = website_entry.get().strip()
+    if website:
+        try:
+            with open("data.json", "r") as file:
+                data = json.load(file)
+        except FileNotFoundError:
+            messagebox.showinfo("Error", "No data file found.")
+            return
+        except json.JSONDecodeError:
+            messagebox.showerror("Error", "Data file is corrupted.")
+            return
+
+        if website in data:
+            email = data[website]["email"]
+            password = data[website]["password"]
+            messagebox.showinfo("Search Result", f"Website: {website}\nEmail: {email}\nPassword: {password}")
+        else:
+            messagebox.showinfo("Search Result", f"No data found for '{website}'.")
+    else:
+        messagebox.showwarning("Input Error", "Please enter a website name to search.")
+
+def prompt_for_default_email():
+    global default_email
+    if default_email is None:
+        default_email = simpledialog.askstring("Set Default Email", "Enter default email/username:")
+        if default_email:
+            email_entry.insert(0, default_email)
+        else:
+            default_email = ""
 
 
 # ---------------------------- UI SETUP ------------------------------- #
@@ -106,12 +155,14 @@ website_entry = tk.Entry(root, width=35, font=("Arial", 10))
 website_entry.focus()
 website_entry.grid(row=1, column=1, columnspan=2, sticky="w", padx=5, pady=2)
 
+search_button = tk.Button(root, text="Search", font=button_font, bg="#2196F3", fg="white", command=search_data)
+search_button.grid(row=1, column=2, padx=5, sticky="w")
+
 # 3. Email/Username text and input (third row)
 email_label = tk.Label(root, text="Email/Username:", bg="white", font=label_font, fg="black")
 email_label.grid(row=2, column=0, sticky="e", padx=5)
 email_entry = tk.Entry(root, width=35, font=("Arial", 10))
 email_entry.grid(row=2, column=1, sticky="w", padx=5, pady=2)
-email_entry.insert(0, "iampragnesh05@gmail.com")
 
 # 4. Password text, input, and Generate button (fourth row)
 password_label = tk.Label(root, text="Password:", bg="white", font=label_font, fg="black")
@@ -125,4 +176,5 @@ generate_button.grid(row=3, column=2, padx=5)
 add_button = tk.Button(root, text="Add", width=36, font=button_font, bg="white", fg="black", command=save_data)
 add_button.grid(row=4, column=1, columnspan=2, pady=10)
 
+root.after(100, prompt_for_default_email)
 root.mainloop()
